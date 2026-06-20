@@ -1,5 +1,7 @@
 package model
 
+import "github.com/sagernet/sing-box/option"
+
 type DomainType int
 
 const (
@@ -36,6 +38,11 @@ type ListInfoMap map[FileName]*ListInfo
 type RuleMap map[string][]DomainRule
 
 type IPRuleMap map[string][]string
+
+// AdGuardRuleMap maps a rule-set name to the sing-box headless rules produced
+// from an AdGuard filter. These rules use the AdGuardDomain matcher, which only
+// sing-box's .srs format can represent.
+type AdGuardRuleMap map[string][]option.HeadlessRule
 
 func NewListInfo() *ListInfo {
 	return &ListInfo{

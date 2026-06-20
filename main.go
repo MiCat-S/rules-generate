@@ -51,11 +51,18 @@ var ipdirCmd = &cobra.Command{
 	RunE:  runIPDir,
 }
 
+var adguardCmd = &cobra.Command{
+	Use:   "adguard",
+	Short: "Convert AdGuard filter file/directory to sing-box rule-set (.srs only)",
+	RunE:  runAdGuard,
+}
+
 var (
 	domainDirPath string
 	geositeFile   string
 	geoipFile     string
 	ipDirPath     string
+	adguardPath   string
 )
 
 func init() {
@@ -78,10 +85,14 @@ func init() {
 	ipdirCmd.Flags().StringVarP(&ipDirPath, "datapath", "d", "", "Path to IP data directory (required)")
 	ipdirCmd.MarkFlagRequired("datapath")
 
+	adguardCmd.Flags().StringVarP(&adguardPath, "datapath", "d", "", "Path to AdGuard filter file or directory (required)")
+	adguardCmd.MarkFlagRequired("datapath")
+
 	rootCmd.AddCommand(domaindirCmd)
 	rootCmd.AddCommand(geositeCmd)
 	rootCmd.AddCommand(geoipCmd)
 	rootCmd.AddCommand(ipdirCmd)
+	rootCmd.AddCommand(adguardCmd)
 }
 
 func main() {
@@ -147,6 +158,41 @@ func runIPDir(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Parsed %d IP lists\n", len(ipRuleMap))
 
 	return exportIP(ipRuleMap)
+}
+
+func runAdGuard(cmd *cobra.Command, args []string) error {
+	fmt.Printf("Parsing AdGuard filter: %s\n", adguardPath)
+
+	ruleMap, err := input.ParseAdGuard(adguardPath)
+	if err != nil {
+		return fmt.Errorf("parse adguard: %w", err)
+	}
+
+	fmt.Printf("Parsed %d rule sets\n", len(ruleMap))
+
+	formats := parseFormats(formatStr)
+	if !(len(formats) == 1 && formats[0] == "singbox") {
+		fmt.Println("Note: AdGuard rules only support sing-box output; other formats are ignored.")
+	}
+
+	if strings.HasSuffix(strings.ToLower(outputDir), ".srs") {
+		fmt.Printf("Exporting to %s (format: singbox)\n", outputDir)
+		if err := output.ExportSingBoxAdGuardFile(ruleMap, outputDir); err != nil {
+			return err
+		}
+		fmt.Println("Done!")
+		return nil
+	}
+
+	lists := parseLists(listsStr)
+	fmt.Printf("Exporting %d rule sets to %s (format: singbox)\n", len(ruleMap), outputDir)
+	fmt.Println("Exporting sing-box rules...")
+	if err := output.ExportSingBoxAdGuard(ruleMap, outputDir, lists, concurrency, false); err != nil {
+		return err
+	}
+
+	fmt.Println("Done!")
+	return nil
 }
 
 func exportDomain(ruleMap model.RuleMap) error {

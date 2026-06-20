@@ -37,6 +37,25 @@ func filterLists(ruleMap model.RuleMap, lists []string) model.RuleMap {
 	return result
 }
 
+func filterAdGuardLists(ruleMap model.AdGuardRuleMap, lists []string) model.AdGuardRuleMap {
+	if len(lists) == 0 {
+		return ruleMap
+	}
+
+	wanted := make(map[string]bool)
+	for _, l := range lists {
+		wanted[strings.ToLower(strings.TrimSpace(l))] = true
+	}
+
+	result := make(model.AdGuardRuleMap)
+	for code, rules := range ruleMap {
+		if wanted[code] {
+			result[code] = rules
+		}
+	}
+	return result
+}
+
 func filterIPLists(ipRuleMap model.IPRuleMap, lists []string) model.IPRuleMap {
 	if len(lists) == 0 {
 		return ipRuleMap

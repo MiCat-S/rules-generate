@@ -85,6 +85,77 @@ func ExportSingBoxIP(ipRuleMap model.IPRuleMap, outputDir string, lists []string
 	return nil
 }
 
+// ExportSingBoxAdGuard writes AdGuard-derived headless rules as sing-box .srs
+// files. Only the binary .srs is written: the AdGuardDomain matcher is tagged
+// json:"-" and cannot be represented in the .json source format.
+func ExportSingBoxAdGuard(ruleMap model.AdGuardRuleMap, outputDir string, lists []string, concurrency int, splitByFormat bool) error {
+	dir := formatOutputDir(outputDir, "singbox", splitByFormat)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+
+	targets := filterAdGuardLists(ruleMap, lists)
+	sem := make(chan struct{}, concurrency)
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var errors []error
+
+	for code, rules := range targets {
+		wg.Add(1)
+		go func(code string, rules []option.HeadlessRule) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			if err := saveSingBoxAdGuardRuleSet(rules, filepath.Join(dir, code)); err != nil {
+				mu.Lock()
+				errors = append(errors, fmt.Errorf("%s: %w", code, err))
+				mu.Unlock()
+			}
+		}(code, rules)
+	}
+
+	wg.Wait()
+
+	if len(errors) > 0 {
+		return fmt.Errorf("sing-box adguard export errors: %v", errors)
+	}
+	return nil
+}
+
+// ExportSingBoxAdGuardFile writes a single AdGuard-derived rule set directly to
+// the given .srs file path (rather than a directory). It requires exactly one
+// rule set; pass an output directory instead when converting multiple files.
+func ExportSingBoxAdGuardFile(ruleMap model.AdGuardRuleMap, outputPath string) error {
+	if len(ruleMap) != 1 {
+		return fmt.Errorf("output path %q is a single file but %d rule sets were parsed; use an output directory instead", outputPath, len(ruleMap))
+	}
+	if err := os.MkdirAll(filepath.Dir(outputPath), 0755); err != nil {
+		return err
+	}
+	for _, rules := range ruleMap {
+		plainRuleSet := option.PlainRuleSetCompat{
+			Version: C.RuleSetVersion2,
+			Options: option.PlainRuleSet{
+				Rules: rules,
+			},
+		}
+		return saveSingBinaryRuleSet(&plainRuleSet, outputPath)
+	}
+	return nil
+}
+
+func saveSingBoxAdGuardRuleSet(rules []option.HeadlessRule, outputPath string) error {
+	plainRuleSet := option.PlainRuleSetCompat{
+		Version: C.RuleSetVersion2,
+		Options: option.PlainRuleSet{
+			Rules: rules,
+		},
+	}
+
+	return saveSingBinaryRuleSet(&plainRuleSet, outputPath+".srs")
+}
+
 func saveSingBoxIPRuleSet(cidrs []string, outputPath string) error {
 	headlessRule := option.DefaultHeadlessRule{
 		IPCIDR: cidrs,
