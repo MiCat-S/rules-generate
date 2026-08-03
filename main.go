@@ -73,7 +73,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&excludeAttrs, "exclude-attrs", "cn@!cn@ads,geolocation-cn@!cn@ads,geolocation-!cn@cn@ads", "Exclude rules with attributes, e.g. cn@!cn@ads,geolocation-cn@!cn")
 	rootCmd.PersistentFlags().StringVar(&splitAttrs, "split-attrs", "all", "Generate extra list@attr rule sets from attribute-tagged rules (default: all); e.g. all or cn,ads")
 	rootCmd.PersistentFlags().IntVarP(&concurrency, "concurrency", "j", runtime.NumCPU(), "Concurrency level")
-	rootCmd.PersistentFlags().BoolVar(&surgeWildcard, "surge-wildcard", true, "Convert regexp rules to Surge DOMAIN-WILDCARD (requires Surge iOS 5.11.0+)")
+	rootCmd.PersistentFlags().BoolVar(&surgeWildcard, "surge-wildcard", true, "Convert regexp rules to Surge DOMAIN/DOMAIN-SUFFIX/DOMAIN-WILDCARD (requires Surge iOS 5.11.0+)")
 
 	domaindirCmd.Flags().StringVarP(&domainDirPath, "datapath", "d", "", "Path to domain data directory (required)")
 	domaindirCmd.MarkFlagRequired("datapath")

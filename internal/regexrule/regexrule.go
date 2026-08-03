@@ -26,7 +26,20 @@ const (
 	subdomainStar   = `.*\.`
 )
 
-func ToWildcard(pattern string) ([]string, bool) {
+type Kind int
+
+const (
+	KindFull Kind = iota
+	KindSuffix
+	KindWildcard
+)
+
+type Rule struct {
+	Kind  Kind
+	Value string
+}
+
+func ToRules(pattern string) ([]Rule, bool) {
 	if !strings.HasSuffix(pattern, "$") {
 		return nil, false
 	}
@@ -51,8 +64,8 @@ func ToWildcard(pattern string) ([]string, bool) {
 		return nil, false
 	}
 
-	seen := make(map[string]bool)
-	var out []string
+	seen := make(map[Rule]bool)
+	var out []Rule
 	for _, variant := range variants {
 		body := normalize(variant)
 		if !acceptable(body) {
@@ -69,20 +82,32 @@ func ToWildcard(pattern string) ([]string, bool) {
 	if len(out) == 0 {
 		return nil, false
 	}
-	sort.Strings(out)
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Kind != out[j].Kind {
+			return out[i].Kind < out[j].Kind
+		}
+		return out[i].Value < out[j].Value
+	})
 	return out, true
 }
 
-func applyAnchor(anchor anchorKind, value string) []string {
+func applyAnchor(anchor anchorKind, value string) []Rule {
+	literal := !strings.ContainsAny(value, "*?")
 	switch anchor {
 	case anchorSuffix:
-		return []string{value, "*." + value}
+		if literal {
+			return []Rule{{KindSuffix, value}}
+		}
+		return []Rule{{KindWildcard, value}, {KindWildcard, "*." + value}}
 	case anchorSubdomain:
-		return []string{"*." + value}
+		return []Rule{{KindWildcard, "*." + value}}
 	case anchorTail:
-		return []string{"*" + value}
+		return []Rule{{KindWildcard, "*" + value}}
 	default:
-		return []string{value}
+		if literal {
+			return []Rule{{KindFull, value}}
+		}
+		return []Rule{{KindWildcard, value}}
 	}
 }
 

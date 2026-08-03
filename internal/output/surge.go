@@ -59,7 +59,7 @@ func ExportSurge(ruleMap model.RuleMap, outputDir string, lists []string, concur
 	}
 
 	if wildcardRegex && stats.converted+stats.skipped > 0 {
-		fmt.Printf("Surge: converted %d regex rules into %d DOMAIN-WILDCARD rules, skipped %d\n", stats.converted, stats.produced, stats.skipped)
+		fmt.Printf("Surge: converted %d regex rules into %d domain rules, skipped %d\n", stats.converted, stats.produced, stats.skipped)
 	}
 	return nil
 }
@@ -115,15 +115,22 @@ func saveSurgeRuleSet(rules []model.DomainRule, outputPath string, wildcardRegex
 			if !wildcardRegex {
 				continue
 			}
-			patterns, ok := regexrule.ToWildcard(rule.Value)
+			converted, ok := regexrule.ToRules(rule.Value)
 			if !ok {
 				stats.skipped++
 				continue
 			}
 			stats.converted++
-			stats.produced += len(patterns)
-			for _, pattern := range patterns {
-				lines = append(lines, "DOMAIN-WILDCARD,"+pattern)
+			stats.produced += len(converted)
+			for _, converted := range converted {
+				switch converted.Kind {
+				case regexrule.KindFull:
+					lines = append(lines, "DOMAIN,"+converted.Value)
+				case regexrule.KindSuffix:
+					lines = append(lines, "DOMAIN-SUFFIX,"+converted.Value)
+				default:
+					lines = append(lines, "DOMAIN-WILDCARD,"+converted.Value)
+				}
 			}
 		}
 	}
