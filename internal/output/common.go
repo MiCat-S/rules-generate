@@ -2,10 +2,59 @@ package output
 
 import (
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/Yuu518/rules-generate/internal/model"
 )
+
+func isTopLevel(value string) bool {
+	return !strings.Contains(value, ".")
+}
+
+func labelCount(value string) int {
+	return strings.Count(value, ".") + 1
+}
+
+type ruleLineEntry struct {
+	rank model.DomainType
+	key  string
+	text string
+}
+
+type ruleLines struct {
+	entries []ruleLineEntry
+}
+
+func (r *ruleLines) add(rank model.DomainType, key, text string) {
+	r.entries = append(r.entries, ruleLineEntry{rank: rank, key: key, text: text})
+}
+
+func (r *ruleLines) len() int {
+	return len(r.entries)
+}
+
+func (r *ruleLines) sorted() []string {
+	sort.Slice(r.entries, func(i, j int) bool {
+		a, b := r.entries[i], r.entries[j]
+		if a.rank != b.rank {
+			return a.rank < b.rank
+		}
+		if a.key != b.key {
+			return a.key < b.key
+		}
+		return a.text < b.text
+	})
+
+	lines := make([]string, 0, len(r.entries))
+	for _, entry := range r.entries {
+		if len(lines) > 0 && lines[len(lines)-1] == entry.text {
+			continue
+		}
+		lines = append(lines, entry.text)
+	}
+	return lines
+}
 
 func formatOutputDir(outputDir, format string, splitByFormat bool) string {
 	if splitByFormat {

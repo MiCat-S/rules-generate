@@ -5,11 +5,13 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 
 	"github.com/Yuu518/rules-generate/internal/model"
 	"github.com/Yuu518/rules-generate/internal/regexrule"
+	"github.com/Yuu518/rules-generate/internal/trie"
 )
 
 const surgeRuleExt = ".list"
@@ -17,7 +19,14 @@ const surgeRuleExt = ".list"
 type surgeRegexStats struct {
 	converted int
 	produced  int
+	dropped   int
 	skipped   int
+}
+
+type surgeCandidate struct {
+	rank      model.DomainType
+	value     string
+	fromRegex bool
 }
 
 func ExportSurge(ruleMap model.RuleMap, outputDir string, lists []string, concurrency int, splitByFormat bool, wildcardRegex bool) error {
@@ -47,6 +56,7 @@ func ExportSurge(ruleMap model.RuleMap, outputDir string, lists []string, concur
 			}
 			stats.converted += ruleStats.converted
 			stats.produced += ruleStats.produced
+			stats.dropped += ruleStats.dropped
 			stats.skipped += ruleStats.skipped
 			mu.Unlock()
 		}(code, rules)
@@ -59,7 +69,7 @@ func ExportSurge(ruleMap model.RuleMap, outputDir string, lists []string, concur
 	}
 
 	if wildcardRegex && stats.converted+stats.skipped > 0 {
-		fmt.Printf("Surge: converted %d regex rules into %d domain rules, skipped %d\n", stats.converted, stats.produced, stats.skipped)
+		fmt.Printf("Surge: converted %d regex rules into %d domain rules, dropped %d covered, skipped %d\n", stats.converted, stats.produced, stats.dropped, stats.skipped)
 	}
 	return nil
 }
@@ -100,17 +110,46 @@ func ExportSurgeIP(ipRuleMap model.IPRuleMap, outputDir string, lists []string, 
 }
 
 func saveSurgeRuleSet(rules []model.DomainRule, outputPath string, wildcardRegex bool) (surgeRegexStats, error) {
-	var lines []string
+	candidates, stats := surgeCandidates(rules, wildcardRegex)
+	kept, dropped := filterSurgeCandidates(candidates)
+	stats.dropped = dropped
+
+	var lines ruleLines
+	for _, candidate := range kept {
+		if candidate.fromRegex {
+			stats.produced++
+		}
+		lines.add(candidate.rank, candidate.value, surgeRulePrefix(candidate.rank)+","+candidate.value)
+	}
+
+	output := strings.Join(lines.sorted(), "\n")
+	if output != "" {
+		output += "\n"
+	}
+	return stats, os.WriteFile(outputPath, []byte(output), 0644)
+}
+
+func surgeRulePrefix(rank model.DomainType) string {
+	switch rank {
+	case model.DomainFull:
+		return "DOMAIN"
+	case model.DomainSuffix:
+		return "DOMAIN-SUFFIX"
+	case model.DomainKeyword:
+		return "DOMAIN-KEYWORD"
+	default:
+		return "DOMAIN-WILDCARD"
+	}
+}
+
+func surgeCandidates(rules []model.DomainRule, wildcardRegex bool) ([]surgeCandidate, surgeRegexStats) {
+	var candidates []surgeCandidate
 	var stats surgeRegexStats
 
 	for _, rule := range rules {
 		switch rule.Type {
-		case model.DomainFull:
-			lines = append(lines, "DOMAIN,"+rule.Value)
-		case model.DomainSuffix:
-			lines = append(lines, "DOMAIN-SUFFIX,"+rule.Value)
-		case model.DomainKeyword:
-			lines = append(lines, "DOMAIN-KEYWORD,"+rule.Value)
+		case model.DomainFull, model.DomainSuffix, model.DomainKeyword:
+			candidates = append(candidates, surgeCandidate{rank: rule.Type, value: rule.Value})
 		case model.DomainRegexp:
 			if !wildcardRegex {
 				continue
@@ -121,25 +160,82 @@ func saveSurgeRuleSet(rules []model.DomainRule, outputPath string, wildcardRegex
 				continue
 			}
 			stats.converted++
-			stats.produced += len(converted)
 			for _, converted := range converted {
+				rank := model.DomainRegexp
 				switch converted.Kind {
 				case regexrule.KindFull:
-					lines = append(lines, "DOMAIN,"+converted.Value)
+					rank = model.DomainFull
 				case regexrule.KindSuffix:
-					lines = append(lines, "DOMAIN-SUFFIX,"+converted.Value)
-				default:
-					lines = append(lines, "DOMAIN-WILDCARD,"+converted.Value)
+					rank = model.DomainSuffix
 				}
+				candidates = append(candidates, surgeCandidate{rank: rank, value: converted.Value, fromRegex: true})
 			}
 		}
 	}
 
-	output := strings.Join(lines, "\n")
-	if output != "" {
-		output += "\n"
+	return candidates, stats
+}
+
+func filterSurgeCandidates(candidates []surgeCandidate) ([]surgeCandidate, int) {
+	drop := make([]bool, len(candidates))
+
+	var suffixes []int
+	for i, candidate := range candidates {
+		if candidate.rank == model.DomainSuffix && !isTopLevel(candidate.value) {
+			suffixes = append(suffixes, i)
+		}
 	}
-	return stats, os.WriteFile(outputPath, []byte(output), 0644)
+	sort.SliceStable(suffixes, func(i, j int) bool {
+		return labelCount(candidates[suffixes[i]].value) < labelCount(candidates[suffixes[j]].value)
+	})
+
+	t := trie.NewDomainTrie()
+	for _, i := range suffixes {
+		success, err := t.Insert(candidates[i].value)
+		if err != nil || !success {
+			drop[i] = true
+		}
+	}
+
+	kept := make([]surgeCandidate, 0, len(candidates))
+	dropped := 0
+	for i, candidate := range candidates {
+		if drop[i] {
+			if candidate.fromRegex {
+				dropped++
+			}
+			continue
+		}
+		switch candidate.rank {
+		case model.DomainFull:
+			if t.Covers(candidate.value) {
+				if candidate.fromRegex {
+					dropped++
+				}
+				continue
+			}
+		case model.DomainRegexp:
+			if tail := wildcardTail(candidate.value); tail != "" && t.Covers(tail) {
+				if candidate.fromRegex {
+					dropped++
+				}
+				continue
+			}
+		}
+		kept = append(kept, candidate)
+	}
+
+	return kept, dropped
+}
+
+func wildcardTail(pattern string) string {
+	parts := strings.Split(pattern, ".")
+	for i := len(parts) - 1; i >= 0; i-- {
+		if strings.ContainsAny(parts[i], "*?") {
+			return strings.Join(parts[i+1:], ".")
+		}
+	}
+	return pattern
 }
 
 func saveSurgeIPRuleSet(cidrs []string, outputPath string) error {

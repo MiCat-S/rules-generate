@@ -84,22 +84,22 @@ func ExportTextIP(ipRuleMap model.IPRuleMap, outputDir string, lists []string, c
 }
 
 func saveTextRuleSet(rules []model.DomainRule, outputPath string) error {
-	var lines []string
+	var lines ruleLines
 
 	for _, rule := range rules {
 		switch rule.Type {
 		case model.DomainFull:
-			lines = append(lines, "full:"+rule.Value)
+			lines.add(model.DomainFull, rule.Value, "full:"+rule.Value)
 		case model.DomainSuffix:
-			lines = append(lines, "domain:"+rule.Value)
+			lines.add(model.DomainSuffix, rule.Value, "domain:"+rule.Value)
 		case model.DomainKeyword:
-			lines = append(lines, "keyword:"+rule.Value)
+			lines.add(model.DomainKeyword, rule.Value, "keyword:"+rule.Value)
 		case model.DomainRegexp:
-			lines = append(lines, "regexp:"+rule.Value)
+			lines.add(model.DomainRegexp, rule.Value, "regexp:"+rule.Value)
 		}
 	}
 
-	output := strings.Join(lines, "\n")
+	output := strings.Join(lines.sorted(), "\n")
 	if output != "" {
 		output += "\n"
 	}

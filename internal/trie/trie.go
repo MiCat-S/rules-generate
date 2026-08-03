@@ -27,6 +27,26 @@ func NewDomainTrie() *DomainTrie {
 	}
 }
 
+func (t *DomainTrie) Covers(domain string) bool {
+	if domain == "" {
+		return false
+	}
+	parts := strings.Split(domain, ".")
+
+	n := t.root
+	for i := len(parts) - 1; i >= 0; i-- {
+		child, ok := n.children[parts[i]]
+		if !ok {
+			return false
+		}
+		if child.leaf {
+			return true
+		}
+		n = child
+	}
+	return false
+}
+
 func (t *DomainTrie) Insert(domain string) (bool, error) {
 	if domain == "" {
 		return false, errors.New("empty domain")

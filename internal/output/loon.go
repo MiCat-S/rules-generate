@@ -84,20 +84,20 @@ func ExportLoonIP(ipRuleMap model.IPRuleMap, outputDir string, lists []string, c
 }
 
 func saveLoonRuleSet(rules []model.DomainRule, outputPath string) error {
-	var lines []string
+	var lines ruleLines
 
 	for _, rule := range rules {
 		switch rule.Type {
 		case model.DomainFull:
-			lines = append(lines, "DOMAIN,"+rule.Value)
+			lines.add(model.DomainFull, rule.Value, "DOMAIN,"+rule.Value)
 		case model.DomainSuffix:
-			lines = append(lines, "DOMAIN-SUFFIX,"+rule.Value)
+			lines.add(model.DomainSuffix, rule.Value, "DOMAIN-SUFFIX,"+rule.Value)
 		case model.DomainKeyword:
-			lines = append(lines, "DOMAIN-KEYWORD,"+rule.Value)
+			lines.add(model.DomainKeyword, rule.Value, "DOMAIN-KEYWORD,"+rule.Value)
 		}
 	}
 
-	output := strings.Join(lines, "\n")
+	output := strings.Join(lines.sorted(), "\n")
 	if output != "" {
 		output += "\n"
 	}

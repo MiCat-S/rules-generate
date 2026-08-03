@@ -93,12 +93,16 @@ func flatten(l *model.ListInfo, lm *model.ListInfoMap) error {
 		}
 	}
 
-	sort.Slice(l.SuffixList, func(i, j int) bool {
-		return len(strings.Split(l.SuffixList[i].Value, ".")) < len(strings.Split(l.SuffixList[j].Value, "."))
+	sort.SliceStable(l.SuffixList, func(i, j int) bool {
+		return labelCount(l.SuffixList[i].Value) < labelCount(l.SuffixList[j].Value)
 	})
 
 	t := trie.NewDomainTrie()
 	for _, domain := range l.SuffixList {
+		if isTopLevel(domain.Value) {
+			l.SuffixUniqueList = append(l.SuffixUniqueList, domain)
+			continue
+		}
 		success, err := t.Insert(domain.Value)
 		if err != nil {
 			return err
@@ -111,8 +115,69 @@ func flatten(l *model.ListInfo, lm *model.ListInfoMap) error {
 	return nil
 }
 
+func isTopLevel(value string) bool {
+	return !strings.Contains(value, ".")
+}
+
+func labelCount(value string) int {
+	return strings.Count(value, ".") + 1
+}
+
+type dedupeKey struct {
+	Type       model.DomainType
+	Value      string
+	Attributes string
+}
+
+func dedupeRules(rules []model.DomainRule) (kept []model.DomainRule, redundant int) {
+	drop := make([]bool, len(rules))
+
+	var suffixes []int
+	for i, rule := range rules {
+		if rule.Type != model.DomainSuffix {
+			continue
+		}
+		if isTopLevel(rule.Value) || len(rule.Attributes) > 0 {
+			continue
+		}
+		suffixes = append(suffixes, i)
+	}
+
+	sort.SliceStable(suffixes, func(i, j int) bool {
+		return labelCount(rules[suffixes[i]].Value) < labelCount(rules[suffixes[j]].Value)
+	})
+
+	t := trie.NewDomainTrie()
+	for _, i := range suffixes {
+		success, err := t.Insert(rules[i].Value)
+		if err != nil || !success {
+			drop[i] = true
+		}
+	}
+
+	seen := make(map[dedupeKey]bool, len(rules))
+	kept = make([]model.DomainRule, 0, len(rules))
+	for i, rule := range rules {
+		if drop[i] {
+			continue
+		}
+		if rule.Type == model.DomainFull && len(rule.Attributes) == 0 && t.Covers(rule.Value) {
+			continue
+		}
+		key := dedupeKey{rule.Type, rule.Value, strings.Join(rule.Attributes, ",")}
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		kept = append(kept, rule)
+	}
+
+	return kept, len(rules) - len(kept)
+}
+
 func ToRuleMap(lm model.ListInfoMap, excludeAttrs map[model.FileName]map[model.AttrKey]bool) model.RuleMap {
 	ruleMap := make(model.RuleMap)
+	var redundantTotal int
 
 	for _, listInfo := range lm {
 		code := strings.ToLower(string(listInfo.Name))
@@ -144,7 +209,13 @@ func ToRuleMap(lm model.ListInfoMap, excludeAttrs map[model.FileName]map[model.A
 			rules = append(rules, rule)
 		}
 
-		ruleMap[code] = rules
+		deduped, redundant := dedupeRules(rules)
+		redundantTotal += redundant
+		ruleMap[code] = deduped
+	}
+
+	if redundantTotal > 0 {
+		fmt.Printf("deduped: dropped %d redundant rules\n", redundantTotal)
 	}
 
 	return ruleMap

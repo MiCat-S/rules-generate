@@ -94,27 +94,29 @@ func ExportMihomoIP(ipRuleMap model.IPRuleMap, outputDir string, lists []string,
 }
 
 func saveMihomoDomainRuleSet(rules []model.DomainRule, dir, classicalDir, code string) error {
-	var domainPayload []string
-	var classicalPayload []string
+	var domainLines, classicalLines ruleLines
 
 	for _, rule := range rules {
 		switch rule.Type {
 		case model.DomainFull:
-			domainPayload = append(domainPayload, rule.Value)
-			classicalPayload = append(classicalPayload, "DOMAIN,"+rule.Value)
+			domainLines.add(model.DomainFull, rule.Value, rule.Value)
+			classicalLines.add(model.DomainFull, rule.Value, "DOMAIN,"+rule.Value)
 		case model.DomainSuffix:
-			domainPayload = append(domainPayload, "+."+rule.Value)
-			classicalPayload = append(classicalPayload, "DOMAIN-SUFFIX,"+rule.Value)
+			domainLines.add(model.DomainSuffix, rule.Value, "+."+rule.Value)
+			classicalLines.add(model.DomainSuffix, rule.Value, "DOMAIN-SUFFIX,"+rule.Value)
 		case model.DomainKeyword:
-			classicalPayload = append(classicalPayload, "DOMAIN-KEYWORD,"+rule.Value)
+			classicalLines.add(model.DomainKeyword, rule.Value, "DOMAIN-KEYWORD,"+rule.Value)
 		case model.DomainRegexp:
-			classicalPayload = append(classicalPayload, "DOMAIN-REGEX,"+rule.Value)
+			classicalLines.add(model.DomainRegexp, rule.Value, "DOMAIN-REGEX,"+rule.Value)
 		}
 	}
 
-	if len(domainPayload) == 0 && len(classicalPayload) == 0 {
+	if domainLines.len() == 0 && classicalLines.len() == 0 {
 		return nil
 	}
+
+	domainPayload := domainLines.sorted()
+	classicalPayload := classicalLines.sorted()
 
 	if len(domainPayload) > 0 {
 		if err := saveMihomoYAML(domainPayload, filepath.Join(dir, code+".yaml")); err != nil {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 
 	"github.com/Yuu518/rules-generate/internal/model"
@@ -85,9 +86,6 @@ func ExportSingBoxIP(ipRuleMap model.IPRuleMap, outputDir string, lists []string
 	return nil
 }
 
-// ExportSingBoxAdGuard writes AdGuard-derived headless rules as sing-box .srs
-// files. Only the binary .srs is written: the AdGuardDomain matcher is tagged
-// json:"-" and cannot be represented in the .json source format.
 func ExportSingBoxAdGuard(ruleMap model.AdGuardRuleMap, outputDir string, lists []string, concurrency int, splitByFormat bool) error {
 	dir := formatOutputDir(outputDir, "singbox", splitByFormat)
 	if err := os.MkdirAll(dir, 0755); err != nil {
@@ -123,9 +121,6 @@ func ExportSingBoxAdGuard(ruleMap model.AdGuardRuleMap, outputDir string, lists 
 	return nil
 }
 
-// ExportSingBoxAdGuardFile writes a single AdGuard-derived rule set directly to
-// the given .srs file path (rather than a directory). It requires exactly one
-// rule set; pass an output directory instead when converting multiple files.
 func ExportSingBoxAdGuardFile(ruleMap model.AdGuardRuleMap, outputPath string) error {
 	if len(ruleMap) != 1 {
 		return fmt.Errorf("output path %q is a single file but %d rule sets were parsed; use an output directory instead", outputPath, len(ruleMap))
@@ -195,6 +190,11 @@ func saveSingBoxRuleSet(rules []model.DomainRule, outputPath string) error {
 			domainRegex = append(domainRegex, rule.Value)
 		}
 	}
+
+	sort.Strings(domainFull)
+	sort.Strings(domainSuffix)
+	sort.Strings(domainKeyword)
+	sort.Strings(domainRegex)
 
 	headlessRule := option.DefaultHeadlessRule{
 		Domain:        domainFull,
