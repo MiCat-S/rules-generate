@@ -94,8 +94,6 @@ func saveTextRuleSet(rules []model.DomainRule, outputPath string) error {
 			lines.add(model.DomainSuffix, rule.Value, "domain:"+rule.Value)
 		case model.DomainKeyword:
 			lines.add(model.DomainKeyword, rule.Value, "keyword:"+rule.Value)
-		case model.DomainRegexp:
-			lines.add(model.DomainRegexp, rule.Value, "regexp:"+rule.Value)
 		}
 	}
 

@@ -10,6 +10,8 @@ import (
 	"github.com/Yuu518/rules-generate/internal/model"
 )
 
+var errSkipRule = errors.New("skip rule")
+
 func ParseDir(dataPath string) (model.ListInfoMap, error) {
 	lm := make(model.ListInfoMap)
 	err := filepath.Walk(dataPath, func(path string, info os.FileInfo, err error) error {
@@ -86,6 +88,9 @@ func parseRule(line string, list *model.ListInfo) (*model.DomainRule, error) {
 
 	rule := model.DomainRule{}
 	if err := parseTypeRule(ruleWithType, &rule); err != nil {
+		if errors.Is(err, errSkipRule) {
+			return nil, nil
+		}
 		return nil, err
 	}
 
@@ -141,8 +146,7 @@ func parseTypeRule(domain string, rule *model.DomainRule) error {
 		case "keyword":
 			rule.Type = model.DomainKeyword
 		case "regexp":
-			rule.Type = model.DomainRegexp
-			rule.Value = ruleVal
+			return errSkipRule
 		default:
 			return errors.New("unknown domain type: " + ruleType)
 		}
@@ -173,8 +177,6 @@ func classifyRule(rule *model.DomainRule, list *model.ListInfo) {
 			list.SuffixList = append(list.SuffixList, *rule)
 		case model.DomainKeyword:
 			list.KeywordList = append(list.KeywordList, *rule)
-		case model.DomainRegexp:
-			list.RegexpList = append(list.RegexpList, *rule)
 		}
 	}
 }

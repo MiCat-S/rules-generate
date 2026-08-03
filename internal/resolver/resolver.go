@@ -76,7 +76,6 @@ func flatten(l *model.ListInfo, lm *model.ListInfoMap) error {
 					l.FullList = append(l.FullList, includedList.FullList...)
 					l.SuffixList = append(l.SuffixList, includedList.SuffixList...)
 					l.KeywordList = append(l.KeywordList, includedList.KeywordList...)
-					l.RegexpList = append(l.RegexpList, includedList.RegexpList...)
 					l.AttributeRuleList = append(l.AttributeRuleList, includedList.AttributeRuleList...)
 					for attr, domainList := range includedList.AttributeRuleMap {
 						l.AttributeRuleMap[attr] = append(l.AttributeRuleMap[attr], domainList...)
@@ -185,7 +184,6 @@ func ToRuleMap(lm model.ListInfoMap, excludeAttrs map[model.FileName]map[model.A
 		var rules []model.DomainRule
 		rules = append(rules, listInfo.FullList...)
 		rules = append(rules, listInfo.SuffixUniqueList...)
-		rules = append(rules, listInfo.RegexpList...)
 		for _, keywordRule := range listInfo.KeywordList {
 			if strings.TrimSpace(keywordRule.Value) != "" {
 				rules = append(rules, keywordRule)

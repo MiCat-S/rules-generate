@@ -17,10 +17,9 @@ var (
 	outputDir    string
 	formatStr    string
 	listsStr     string
-	excludeAttrs  string
-	splitAttrs    string
-	concurrency   int
-	surgeWildcard bool
+	excludeAttrs string
+	splitAttrs   string
+	concurrency  int
 )
 
 var rootCmd = &cobra.Command{
@@ -73,7 +72,6 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&excludeAttrs, "exclude-attrs", "cn@!cn@ads,geolocation-cn@!cn@ads,geolocation-!cn@cn@ads", "Exclude rules with attributes, e.g. cn@!cn@ads,geolocation-cn@!cn")
 	rootCmd.PersistentFlags().StringVar(&splitAttrs, "split-attrs", "all", "Generate extra list@attr rule sets from attribute-tagged rules (default: all); e.g. all or cn,ads")
 	rootCmd.PersistentFlags().IntVarP(&concurrency, "concurrency", "j", runtime.NumCPU(), "Concurrency level")
-	rootCmd.PersistentFlags().BoolVar(&surgeWildcard, "surge-wildcard", true, "Convert regexp rules to Surge DOMAIN/DOMAIN-SUFFIX/DOMAIN-WILDCARD (requires Surge iOS 5.11.0+)")
 
 	domaindirCmd.Flags().StringVarP(&domainDirPath, "datapath", "d", "", "Path to domain data directory (required)")
 	domaindirCmd.MarkFlagRequired("datapath")
@@ -217,7 +215,7 @@ func exportDomain(ruleMap model.RuleMap) error {
 			err = output.ExportSingBox(ruleMap, outputDir, lists, concurrency, splitByFormat)
 		case "surge":
 			fmt.Println("Exporting Surge rules...")
-			err = output.ExportSurge(ruleMap, outputDir, lists, concurrency, splitByFormat, surgeWildcard)
+			err = output.ExportSurge(ruleMap, outputDir, lists, concurrency, splitByFormat)
 		case "loon":
 			fmt.Println("Exporting Loon rules...")
 			err = output.ExportLoon(ruleMap, outputDir, lists, concurrency, splitByFormat)

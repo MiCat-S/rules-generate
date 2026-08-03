@@ -106,8 +106,6 @@ func saveMihomoDomainRuleSet(rules []model.DomainRule, dir, classicalDir, code s
 			classicalLines.add(model.DomainSuffix, rule.Value, "DOMAIN-SUFFIX,"+rule.Value)
 		case model.DomainKeyword:
 			classicalLines.add(model.DomainKeyword, rule.Value, "DOMAIN-KEYWORD,"+rule.Value)
-		case model.DomainRegexp:
-			classicalLines.add(model.DomainRegexp, rule.Value, "DOMAIN-REGEX,"+rule.Value)
 		}
 	}
 

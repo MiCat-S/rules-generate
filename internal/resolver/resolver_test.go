@@ -67,7 +67,7 @@ func TestToRuleMapKeepsAttributeRules(t *testing.T) {
 	assertRules(t, got, want)
 }
 
-func TestToRuleMapKeepsKeywordAndRegexpAndDropsDuplicates(t *testing.T) {
+func TestToRuleMapKeepsKeywordAndDropsDuplicates(t *testing.T) {
 	l := newList("Y")
 	l.SuffixList = []model.DomainRule{
 		{Type: model.DomainSuffix, Value: "example.com"},
@@ -79,15 +79,11 @@ func TestToRuleMapKeepsKeywordAndRegexpAndDropsDuplicates(t *testing.T) {
 	l.KeywordList = []model.DomainRule{
 		{Type: model.DomainKeyword, Value: "example"},
 	}
-	l.RegexpList = []model.DomainRule{
-		{Type: model.DomainRegexp, Value: `^a\.example\.com$`},
-	}
 
 	got := resolveToRules(t, l, "y")
 	want := []model.DomainRule{
 		{Type: model.DomainFull, Value: "dup.net"},
 		{Type: model.DomainSuffix, Value: "example.com"},
-		{Type: model.DomainRegexp, Value: `^a\.example\.com$`},
 		{Type: model.DomainKeyword, Value: "example"},
 	}
 

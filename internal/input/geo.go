@@ -30,7 +30,10 @@ func ParseDat(filePath string) (model.RuleMap, error) {
 		var rules []model.DomainRule
 
 		for _, domain := range entry.Domain {
-			rule := convertDomain(domain)
+			rule, ok := convertDomain(domain)
+			if !ok {
+				continue
+			}
 			rules = append(rules, rule)
 		}
 
@@ -66,7 +69,7 @@ func ParseGeoIPDat(filePath string) (model.IPRuleMap, error) {
 	return ipRuleMap, nil
 }
 
-func convertDomain(domain *router.Domain) model.DomainRule {
+func convertDomain(domain *router.Domain) (model.DomainRule, bool) {
 	rule := model.DomainRule{
 		Value: domain.Value,
 	}
@@ -75,10 +78,10 @@ func convertDomain(domain *router.Domain) model.DomainRule {
 		rule.Type = model.DomainFull
 	case router.Domain_Domain:
 		rule.Type = model.DomainSuffix
-	case router.Domain_Regex:
-		rule.Type = model.DomainRegexp
 	case router.Domain_Plain:
 		rule.Type = model.DomainKeyword
+	default:
+		return model.DomainRule{}, false
 	}
-	return rule
+	return rule, true
 }

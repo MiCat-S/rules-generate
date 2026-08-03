@@ -5,10 +5,9 @@ import "github.com/sagernet/sing-box/option"
 type DomainType int
 
 const (
-	DomainFull    DomainType = iota
+	DomainFull DomainType = iota
 	DomainSuffix
 	DomainKeyword
-	DomainRegexp
 )
 
 type DomainRule struct {
@@ -28,7 +27,6 @@ type ListInfo struct {
 	SuffixList            []DomainRule
 	SuffixUniqueList      []DomainRule
 	KeywordList           []DomainRule
-	RegexpList            []DomainRule
 	AttributeRuleMap      map[AttrKey][]DomainRule
 	AttributeRuleList     []DomainRule
 }
@@ -51,7 +49,6 @@ func NewListInfo() *ListInfo {
 		SuffixList:            make([]DomainRule, 0, 10),
 		SuffixUniqueList:      make([]DomainRule, 0, 10),
 		KeywordList:           make([]DomainRule, 0, 10),
-		RegexpList:            make([]DomainRule, 0, 10),
 		AttributeRuleMap:      make(map[AttrKey][]DomainRule),
 		AttributeRuleList:     make([]DomainRule, 0, 10),
 	}

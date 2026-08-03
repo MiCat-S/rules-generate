@@ -176,7 +176,7 @@ func saveSingBoxIPRuleSet(cidrs []string, outputPath string) error {
 }
 
 func saveSingBoxRuleSet(rules []model.DomainRule, outputPath string) error {
-	var domainFull, domainSuffix, domainKeyword, domainRegex []string
+	var domainFull, domainSuffix, domainKeyword []string
 
 	for _, rule := range rules {
 		switch rule.Type {
@@ -186,21 +186,17 @@ func saveSingBoxRuleSet(rules []model.DomainRule, outputPath string) error {
 			domainSuffix = append(domainSuffix, rule.Value)
 		case model.DomainKeyword:
 			domainKeyword = append(domainKeyword, rule.Value)
-		case model.DomainRegexp:
-			domainRegex = append(domainRegex, rule.Value)
 		}
 	}
 
 	sort.Strings(domainFull)
 	sort.Strings(domainSuffix)
 	sort.Strings(domainKeyword)
-	sort.Strings(domainRegex)
 
 	headlessRule := option.DefaultHeadlessRule{
 		Domain:        domainFull,
 		DomainSuffix:  domainSuffix,
 		DomainKeyword: domainKeyword,
-		DomainRegex:   domainRegex,
 	}
 
 	plainRuleSet := option.PlainRuleSetCompat{
