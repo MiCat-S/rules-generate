@@ -57,12 +57,21 @@ var adguardCmd = &cobra.Command{
 	RunE:  runAdGuard,
 }
 
+var convertCmd = &cobra.Command{
+	Use:   "convert",
+	Short: "Convert a sing-box source rule-set directory to six client formats",
+	RunE:  runConvert,
+}
+
 var (
-	domainDirPath string
-	geositeFile   string
-	geoipFile     string
-	ipDirPath     string
-	adguardPath   string
+	domainDirPath        string
+	geositeFile          string
+	geoipFile            string
+	ipDirPath            string
+	adguardPath          string
+	convertDirPath       string
+	conversionReportPath string
+	quantumultPolicy     string
 )
 
 func init() {
@@ -88,11 +97,36 @@ func init() {
 	adguardCmd.Flags().StringVarP(&adguardPath, "datapath", "d", "", "Path to AdGuard filter file or directory (required)")
 	adguardCmd.MarkFlagRequired("datapath")
 
+	convertCmd.Flags().StringVarP(&convertDirPath, "datapath", "d", "", "Path containing rule_set_site and rule_set_ip (required)")
+	convertCmd.Flags().StringVar(&conversionReportPath, "report", "", "Optional JSON conversion report path")
+	convertCmd.Flags().StringVar(&quantumultPolicy, "quantumult-policy", "proxy", "Quantumult X placeholder policy")
+	convertCmd.MarkFlagRequired("datapath")
+
 	rootCmd.AddCommand(domaindirCmd)
 	rootCmd.AddCommand(geositeCmd)
 	rootCmd.AddCommand(geoipCmd)
 	rootCmd.AddCommand(ipdirCmd)
 	rootCmd.AddCommand(adguardCmd)
+	rootCmd.AddCommand(convertCmd)
+}
+
+func runConvert(cmd *cobra.Command, args []string) error {
+	fmt.Printf("Parsing sing-box source directory: %s\n", convertDirPath)
+	ruleSets, err := input.ParseSingBoxDir(convertDirPath)
+	if err != nil {
+		return fmt.Errorf("parse sing-box directory: %w", err)
+	}
+
+	fmt.Printf("Converting %d rule sets to %s\n", len(ruleSets), outputDir)
+	report, err := output.ExportConverted(ruleSets, outputDir, quantumultPolicy)
+	if err != nil {
+		return fmt.Errorf("export converted rules: %w", err)
+	}
+	if err := output.WriteConversionReport(report, conversionReportPath); err != nil {
+		return fmt.Errorf("write conversion report: %w", err)
+	}
+	fmt.Printf("Done: %d converted, %d binary-only, %d rules\n", report.ConvertedRuleSets, len(report.BinaryOnly), report.Rules)
+	return nil
 }
 
 func main() {
