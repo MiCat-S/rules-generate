@@ -2,7 +2,6 @@ package output
 
 import (
 	"encoding/json"
-	"fmt"
 	"net"
 	"os"
 	"path/filepath"
@@ -15,11 +14,17 @@ import (
 var clientDirectories = []string{"surge", "loon", "shadowrocket", "mihomo", "quantumult-x", "sing-box"}
 
 type ConversionReport struct {
-	SourceRuleSets    int      `json:"source_rule_sets"`
-	ConvertedRuleSets int      `json:"converted_rule_sets"`
-	Rules             int      `json:"rules"`
-	BinaryOnly        []string `json:"binary_only"`
-	Targets           []string `json:"targets"`
+	SourceRuleSets     int              `json:"source_rule_sets"`
+	ConvertedRuleSets  int              `json:"converted_rule_sets"`
+	Rules              int              `json:"rules"` // Source entries, including domain_regex.
+	BinaryOnly         []string         `json:"binary_only"`
+	Targets            []string         `json:"targets"`
+	SkippedDomainRegex DomainRegexSkips `json:"skipped_domain_regex"`
+}
+
+type DomainRegexSkips struct {
+	Targets  []string       `json:"targets"`
+	RuleSets map[string]int `json:"rule_sets"`
 }
 
 func ExportConverted(ruleSets model.SourceRuleSetMap, outputDir, quantumultPolicy string) (ConversionReport, error) {
@@ -38,19 +43,23 @@ func ExportConverted(ruleSets model.SourceRuleSetMap, outputDir, quantumultPolic
 	report := ConversionReport{
 		SourceRuleSets: len(keys),
 		Targets:        append([]string(nil), clientDirectories...),
+		SkippedDomainRegex: DomainRegexSkips{
+			Targets:  []string{"surge", "loon", "shadowrocket", "quantumult-x"},
+			RuleSets: make(map[string]int),
+		},
 	}
 
 	for _, name := range keys {
 		ruleSet := ruleSets[name]
 		if len(ruleSet.DomainRegex) > 0 {
-			return ConversionReport{}, fmt.Errorf("%s: domain_regex is not supported by every target", name)
+			report.SkippedDomainRegex.RuleSets[name] = len(ruleSet.DomainRegex)
 		}
 		if ruleSet.SourceJSONPath == "" {
 			report.BinaryOnly = append(report.BinaryOnly, name)
 		} else {
 			report.ConvertedRuleSets++
 		}
-		report.Rules += len(ruleSet.Domains) + len(ruleSet.IPCIDR)
+		report.Rules += len(ruleSet.Domains) + len(ruleSet.IPCIDR) + len(ruleSet.DomainRegex)
 
 		if err := copyIfPresent(ruleSet.SourceJSONPath, filepath.Join(outputDir, "sing-box", name+".json")); err != nil {
 			return ConversionReport{}, err
@@ -58,24 +67,27 @@ func ExportConverted(ruleSets model.SourceRuleSetMap, outputDir, quantumultPolic
 		if err := copyIfPresent(ruleSet.SourceSRSPath, filepath.Join(outputDir, "sing-box", name+".srs")); err != nil {
 			return ConversionReport{}, err
 		}
-		if len(ruleSet.Domains) == 0 && len(ruleSet.IPCIDR) == 0 {
-			continue
-		}
-
 		classical := classicalLines(ruleSet)
-		for _, target := range []string{"surge", "loon", "shadowrocket"} {
-			if err := writeLines(filepath.Join(outputDir, target, name+".list"), classical); err != nil {
+		if len(classical) > 0 {
+			for _, target := range []string{"surge", "loon", "shadowrocket"} {
+				if err := writeLines(filepath.Join(outputDir, target, name+".list"), classical); err != nil {
+					return ConversionReport{}, err
+				}
+			}
+			if err := writeLines(
+				filepath.Join(outputDir, "quantumult-x", name+".list"),
+				quantumultXLines(ruleSet, quantumultPolicy),
+			); err != nil {
 				return ConversionReport{}, err
 			}
 		}
-		if err := saveMihomoYAML(classical, filepath.Join(outputDir, "mihomo", name+".yaml")); err != nil {
-			return ConversionReport{}, err
+		for _, pattern := range ruleSet.DomainRegex {
+			classical = append(classical, "DOMAIN-REGEX,"+pattern)
 		}
-		if err := writeLines(
-			filepath.Join(outputDir, "quantumult-x", name+".list"),
-			quantumultXLines(ruleSet, quantumultPolicy),
-		); err != nil {
-			return ConversionReport{}, err
+		if len(classical) > 0 {
+			if err := saveMihomoYAML(classical, filepath.Join(outputDir, "mihomo", name+".yaml")); err != nil {
+				return ConversionReport{}, err
+			}
 		}
 	}
 	return report, nil
